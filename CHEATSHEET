@@ -1,0 +1,138 @@
+App development: REST API and JWT with PHP Code Igniter
+
+https://www.twilio.com/blog/create-secured-restful-api-codeigniter-php
+
+// requirement
+// 1. composer (dependency manager) https://getcomposer.org/doc/00-intro.md
+//    composer is like npm (nodejs package manager)
+php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+php -r "if (hash_file('sha384', 'composer-setup.php') === '906a84df04cea2aa72f40b5f787e49f22d4c2f19492ac310e8cba5b96ac8b64115ac402c8cd292b8a03482574915d1a8') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+php composer-setup.php
+php -r "unlink('composer-setup.php');"
+sudo mv composer.phar /usr/local/bin/composer
+
+// additional command
+sudo apt install php-intl
+sudo apt install php-curl
+
+//
+composer create-project codeigniter4/appstarter ci-auth-jwt-api
+cd ci-auth-jwt-api/
+// php server (like nodejs)
+php spark serve
+php spark help seve
+php spark serve --host 192.168.1.10
+
+// populate environment file
+cp env .env
+// change environment from production to development
+CI_ENVIRONMENT = development
+// create 2 migration files with class name: 1) add_client 2) add_user
+php spark migrate:create
+// migration files are located in /var/www/html/ci-auth-jwt-api/app/Database/Migrations/
+nano /var/www/html/ci-auth-jwt-api/app/Database/Migrations/xxx_AddClient.php
+nano /var/www/html/ci-auth-jwt-api/app/Database/Migrations/xxx_AddUser.php
+php spark migrate
+// make seeder data in the database, with class name: ClientSeeder
+// File created: APPPATH/Database/Seeds/ClientSeeder.php
+php spark make:seeder
+nano app/Database/Seeds/ClientSeeder.php
+php spark db:seed ClientSeeder
+// api interaction with database
+nano app/Models/UserModel.php
+nano app/Models/ClientModel.php
+
+// jwt using firebase/php-jwt library
+// https://jwt.io/
+composer require firebase/php-jwt
+//
+// #JWT_SECRET_KEY key is the secret key used by the application to sign JWTS. 
+// JWT_SECRET_KEY=kzUf4sxss4AeG5uHkNZAqT1Nyi1zVfpz 
+// #JWT_TIME_TO_LIVE indicates the validity period of a signed JWT (in milliseconds)
+// JWT_TIME_TO_LIVE=3600
+nano .env
+// create helper
+nano app/Config/Services.php
+nano app/Helpers/jwt_helper.php
+nano app/Filters/JWTAuthenticationFilter.php
+nano app/Config/Filters.php
+
+// test api; method GET
+curl -v http://192.168.1.10:8080/client
+
+//
+nano app/Controllers/BaseController.php
+
+// authentication controller
+nano app/Controllers/Auth.php
+
+// registration
+// test api; method POST
+// curl example: https://www.baeldung.com/curl-rest
+curl -v -d 'name=jaya&email=jaya@email.com&password=jayapass' http://192.168.1.10:8080/auth/register
+
+// login
+mkdir app/Validation
+nano app/Validation/UserRules.php
+nano app/Config/Validation.php
+
+// test api; method POST
+curl -v -d 'email=jaya@email.com&password=jayapass' http://192.168.1.10:8080/auth/login
+
+// create client controller
+nano app/Config/Routes.php
+nano app/Controllers/Client.php
+
+// test api with jwt
+// list
+//   access php spark
+curl -v -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImpheWFAZW1haWwuY29tIiwiaWF0IjoxNjMzMjc0NTk0LCJleHAiOjE2MzMyNzgxOTR9.z1mInoVsW6c5-aPK9IqV4GlhR3jyWAXAD0TGXEOH7w4" http://192.168.1.10:8080/client
+//   access apache2
+curl -v -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImpheWFAZW1haWwuY29tIiwiaWF0IjoxNjMzMjc0NTk0LCJleHAiOjE2MzMyNzgxOTR9.z1mInoVsW6c5-aPK9IqV4GlhR3jyWAXAD0TGXEOH7w4" http://192.168.1.10/ci-auth-jwt-api/client
+
+// delete
+curl -v -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImpheWFAZW1haWwuY29tIiwiaWF0IjoxNjMzMjc0NTk0LCJleHAiOjE2MzMyNzgxOTR9.z1mInoVsW6c5-aPK9IqV4GlhR3jyWAXAD0TGXEOH7w4" -X DELETE http://192.168.1.10:8080/client/10
+
+
+// deploying in apache
+// 1. correcting writable/cache folder
+sudo chown -R www-data:www-data writable/
+// 2. public folder is where visitor access your website.
+//    so you have to make public folder as main entrance.
+//    this can be done using .htaccess file. source: https://forum.codeigniter.com/thread-75774.html
+//    example:
+jaya@orangepizero2:/var/www/html/ci-auth-jwt-api$ cat .htaccess
+<IfModule mod_rewrite.c>
+    RewriteEngine on
+    # Redirect requests to public
+    RewriteRule  ^$ public/    [L]
+    RewriteRule  (.*) public/$1 [L]
+</IfModule>
+
+// Additional
+// enable apache2 module: https://tecadmin.net/enable-disable-modules-in-apache2-on-ubuntu-linuxmint/
+// enable rewrite module
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+// disable module
+sudo a2dismod rewrite
+sudo systemctl restart apache2
+// check module
+a2query -m rewrite
+// list module
+a2query -m
+
+// mysql issue root: https://askubuntu.com/questions/766334/cant-login-as-mysql-user-root-from-normal-user-account-in-ubuntu-16-04
+sudo mysql -u root -p
+SELECT User,Host FROM mysql.user;
+DROP USER 'root'@'localhost';
+CREATE USER 'root'@'localhost' IDENTIFIED BY 'passwordhere';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+// change mysql password
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'NewPassword';
+FLUSH PRIVILEGES;
+
+// check process list with username info
+ps aux
+
